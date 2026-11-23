@@ -31,7 +31,9 @@ config/  环境与凭据
 
 ## 3. 覆盖矩阵
 
-### 已实现（31 个用例）
+### 已实现（53 个用例）
+
+**核心 API（31）**：
 
 | 域 | 用例 | 关键断言 |
 |---|---|---|
@@ -52,14 +54,29 @@ config/  环境与凭据
 | 签名负向 | 错误 Key、篡改 body、过期、重放、缺头 | 401 `CONNECTOR_UNAUTHORIZED` |
 | 租户隔离 | 资源动作、执行、资源列表、Principal、项目成员 | 404 / 空列表 / 不泄露 |
 
+**集成（17）**：
+
+| 域 | 用例 | mock / 关键断言 |
+|---|---|---|
+| 联邦断言 | 链路、未绑定、重放、错签名、过期 | RSA 自签 JWT；200 accessToken / 403 `FEDERATED_TENANT_NOT_BOUND` / 401 `ASSERTION_REPLAYED` |
+| AI 助手 | 链路、未认证 | mock `/chat/completions` SSE；delta+done 事件；401 |
+| OIDC | 授权码链路、state 负向 | 假 IdP（discovery/jwks/token + RS256）；session 签发 / 400 `INVALID_OIDC_STATE` |
+| 钉钉渠道 | 默认/未配置启用/名称事件/测试未配置/非 admin/跨租户群隔离 | 409 `DINGTALK_NOT_CONFIGURED` / 400 `INVALID_CHANNEL` / 409 `DINGTALK_GROUP_BOUND` / 403 |
+
+**UI 冒烟（5）**：
+
+| 页 | 断言 |
+|---|---|
+| 平台/组织登录 | 登录成功离开登录页；错误密码留在登录页 |
+| 资源目录 / 审批 / 审计 | 页标题渲染（`Resource Catalog` / `Approval Queue` / `Audit Trail`） |
+
 ### 下一阶段
 
 | 阶段 | 内容 |
 |---|---|
 | Phase 2 | 策略矩阵 `ALLOW/DENY/REQUIRE_APPROVAL`、拒绝原因、审批过期、并发 429、分页、Scope 细分 |
 | Phase 3 | Connector 租约过期、TaskEnvelope 本地验签、`UNKNOWN` 语义、变更安全 `_warden_safety`、真实目标集成（可选） |
-| Phase 4 | 联邦断言登录、委托 Token、OIDC（假 IdP）、钉钉（mock）、AI（mock OpenAI）、下载接口 |
-| 可选 | Playwright UI 冒烟：登录、资源目录、审批、审计 |
+| Phase 4 | 剩余：委托 Token、下载接口（联邦断言/OIDC/钉钉/AI/UI 已落地） |
 
 ## 4. 安全测试矩阵
 
@@ -79,7 +96,7 @@ config/  环境与凭据
 - 数据库：测试不直接连库；通过 API 验证。后续如需 DB 断言，再引入可控的只读连接。
 - 隔离：每个用例独立租户；不修改 `platform` 与演示租户 `acme`。
 
-## 6. 运行与 CI 建议
+## 6. 运行与 CI
 
 ```bash
 make smoke        # PR 门禁，约 10 秒
@@ -89,17 +106,28 @@ make security     # 安全
 make report       # allure
 ```
 
-CI 建议：
+集成与 UI 按 marker 跑（需对应 mock/配置，见各 marker fixture 门控）：
 
-1. 用固定 tag 的 `warden` 镜像启动控制面 + PostgreSQL；
-2. 等待 `/api/v1/health`；
-3. 运行 `pytest -m smoke` 作为 PR 门禁，nightly 跑全量；
-4. 产物：`allure-results/` + JUnit XML；
-5. 凭据由 CI Secret 注入，报告脱敏。
+```bash
+pytest -m "federated or ai or oidc or dingtalk"   # 集成
+pytest -m ui                                       # UI 冒烟
+```
+
+CI（GitHub Actions，`scripts/sync-github.sh` 把 gitee 快照同步到 GitHub 镜像后触发）：
+
+| workflow | 触发 | 内容 |
+|---|---|---|
+| `warden-e2e` | push main | postgres service + 自建 warden → 核心 31（smoke/connector/security/approval） |
+| `warden-integration-e2e` | push main / 手动 | 控制面带集成配置 + 各 mock → 联邦/AI/OIDC/钉钉 17 |
+| `warden-ui-smoke` | 手动 | 附加前端 dev server + Playwright 浏览器 → UI 5 |
+
+- 各 workflow 内统一套路：postgres service → checkout warden → init secrets/config → 迁移 → `go build` 控制面 → 等 `/api/v1/health` → pytest。
+- 产物：`allure-results/` + JUnit XML；凭据经环境变量与本地 warden 回退注入，报告脱敏。
 
 ## 7. 已知限制
 
-- 测试 Connector 只模拟网络设备动作，不执行真实设备命令；
-- 未覆盖 OIDC / 钉钉 / AI / 联邦断言，需要额外 mock；
+- 测试 Connector 只模拟网络设备动作，不执行真实设备命令（真实 Kubernetes / Jenkins / 网络设备属联调范畴，不在本黑盒仓库内）；
+- 钉钉仅覆盖「渠道 CRUD + 租户隔离 + 错误码」：真实推送/回调因 webhook host 校验 + Stream 长连接的硬约束，未做黑盒覆盖；
+- 集成 mock（假 IdP / mock LLM / RSA 自签断言）只验证协议契约，不验证真实 SSO IdP / LLM / 外部 IdP 的行为；
 - 未做 TaskEnvelope 的 Python 侧验签（Go 侧与真实 Connector 已覆盖）；
 - 未引入数据库直连断言，避免测试仓库持有 DB 凭据。

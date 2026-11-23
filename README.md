@@ -5,9 +5,12 @@
 
 ## 当前状态
 
-- 本机已对 `http://127.0.0.1:8090` 的 warden 控制面全量跑通：**31 passed / 13s**。
-- 覆盖：健康检查、平台/租户登录、租户生命周期、项目、Principal/API Key、测试 Connector、执行状态机、审批、审计、租户隔离、Connector 签名负向。
-- 不依赖真实 Kubernetes / Jenkins / 网络设备：仓库内置 **Python 版测试 Connector**，复刻 warden 的 HMAC 请求签名协议。
+- 共 **53 个用例**，三个 workflow 全绿：
+  - 核心 API 31（健康/认证/租户/项目/Principal/Key/Connector/执行/审批/审计/隔离/签名负向）；
+  - 集成 17（联邦断言 5、AI 助手 2、OIDC 2、钉钉渠道 8）；
+  - UI 冒烟 5（登录 2 + 资源目录/审批/审计三页 3）。
+- 覆盖：健康检查、平台/租户登录、租户生命周期、项目、Principal/API Key、测试 Connector、执行状态机、审批、审计、租户隔离、Connector 签名负向、联邦断言登录、AI 助手、OIDC、钉钉审批渠道、UI 登录与三页冒烟。
+- 不依赖真实 Kubernetes / Jenkins / 网络设备：仓库内置 **Python 版测试 Connector**，复刻 warden 的 HMAC 请求签名协议；集成测试用 mock（假 IdP / mock LLM / RSA 自签断言）。
 
 ## 为什么独立成仓
 
@@ -23,11 +26,16 @@ warden 主仓库已有 500+ Go 测试，覆盖单元、Handler 和 DB 门控集�
 ```text
 warden_testing/
 ├── case/                       # 场景编排层，只调用 lib/factory 与 lib 客户端
-│   ├── conftest.py             # 全局 fixture：健康检查、平台管理员、隔离租户、Agent、Connector
+│   ├── conftest.py             # 全局 fixture：健康检查、平台管理员、隔离租户、Agent、Connector、各 mock
 │   ├── platform/               # 健康检查、登录、租户生命周期
 │   ├── tenant/                 # 项目、Principal、API Key
 │   ├── connector/              # 测试 Connector 驱动的执行闭环与签名负向
-│   └── security/               # 跨租户隔离
+│   ├── security/               # 跨租户隔离
+│   ├── federation/             # 联邦断言登录
+│   ├── ai/                     # AI 助手（mock LLM）
+│   ├── oidc/                   # OIDC（假 IdP）
+│   ├── dingtalk/               # 钉钉通知渠道与租户隔离
+│   └── ui/                     # Playwright UI 冒烟
 ├── lib/
 │   ├── control/client.py       # warden 控制面 API 封装
 │   ├── connector/simulator.py  # 测试 Connector：注册/心跳/资源同步/拉任务/回传
@@ -36,11 +44,15 @@ warden_testing/
 │   ├── request.py              # 统一 HTTP，脱敏后写 allure
 │   ├── assertTool.py           # 结构化断言
 │   ├── crypto.py               # Connector HMAC 签名
+│   ├── federation.py           # RSA 密钥对 + 联邦断言 JWT 签名
+│   ├── mock_llm.py             # mock OpenAI 兼容 SSE 流式服务
+│   ├── fake_oidc.py            # 假 OIDC IdP（discovery/jwks/token）
 │   ├── waitTool.py             # 条件轮询
 │   ├── ids.py                  # 唯一测试数据标识
 │   └── printTool.py            # zPrint
 ├── config/environment.py       # 环境与凭据加载（含 warden 本地仓库回退）
-├── scripts/                    # stack_up / stack_down / run_tests
+├── .github/workflows/          # e2e / integration / ui-smoke 三个 workflow
+├── scripts/                    # stack_up / stack_down / run_tests / sync-github
 ├── docs/TEST_PLAN.md           # 覆盖矩阵与后续路线
 ├── pytest.ini
 ├── requirements.txt
@@ -90,6 +102,16 @@ make connector    # 测试 Connector / 执行链路
 make security     # 安全与隔离
 make approval     # 审批链路
 make report       # allure serve allure-results
+```
+
+集成测试与 UI 冒烟按 marker 单独跑（需先准备对应 mock 与配置，见 TEST_PLAN）：
+
+```bash
+# 集成：联邦断言 / AI / OIDC / 钉钉（需控制面带上对应配置 + mock）
+pytest -m "federated or ai or oidc or dingtalk"
+
+# UI 冒烟：需前端 dev server + playwright 浏览器
+pytest -m ui
 ```
 
 ### 4. 配置与凭据
@@ -188,5 +210,4 @@ def test_example(tenant_admin: WardenClient):
 
 - Phase 2：策略矩阵、更多审批/取消/并发边界；
 - Phase 3：Connector 租约过期、TaskEnvelope 本地验签、变更安全结果；
-- Phase 4：联邦断言、委托 Token、OIDC（假 IdP）、钉钉 mock、AI mock；
-- 可选：Playwright UI 冒烟。
+- Phase 4 已落地：联邦断言、OIDC（假 IdP）、钉钉渠道、AI（mock）、UI 冒烟；剩余：委托 Token、下载接口。
