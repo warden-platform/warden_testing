@@ -146,7 +146,7 @@ jobs:
           WARDEN_TEST_OIDC_ENABLED: "1"
         run: |
           mkdir -p artifacts
-          pytest -m "federated or ai or oidc" \
+          pytest -m "federated or ai or oidc or dingtalk" \
             --alluredir=allure-results \
             --junitxml=artifacts/junit-integration.xml
 

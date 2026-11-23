@@ -220,6 +220,24 @@ class WardenClient:
         except requests.RequestException as exc:  # pragma: no cover
             raise AssertionError(f"OIDC callback 失败: {exc}") from exc
 
+    # -------------------------------------------------------------- dingtalk
+    def get_dingtalk_channel(self) -> dict:
+        return self.request("GET", self._api("/notification-channels/dingtalk")).body
+
+    def update_dingtalk_channel(
+        self, *, name: str, enabled: bool, events: list[str], open_conversation_id: str
+    ) -> dict:
+        return self.request(
+            "PUT",
+            self._api("/notification-channels/dingtalk"),
+            json_body={
+                "name": name,
+                "enabled": enabled,
+                "events": events,
+                "open_conversation_id": open_conversation_id,
+            },
+        ).body
+
     # ------------------------------------------------------------- principals
     def list_principals(self, kind: str | None = None) -> list[dict]:
         params = {"kind": kind} if kind else None
