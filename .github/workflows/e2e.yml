@@ -104,13 +104,13 @@ jobs:
           done
 
       - name: Build control plane
-        working-directory: warden
-        run: go build -o bin/warden-control ./server/cmd/warden-control
+        working-directory: warden/server
+        run: go build -o bin/warden-control ./cmd/warden-control
 
       - name: Start control plane
         working-directory: warden
         run: |
-          nohup ./bin/warden-control > /tmp/warden-control.log 2>&1 &
+          nohup ./server/bin/warden-control > /tmp/warden-control.log 2>&1 &
           echo $! > warden-control.pid
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:8080/api/v1/health >/dev/null 2>&1; then
