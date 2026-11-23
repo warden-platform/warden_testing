@@ -185,6 +185,41 @@ class WardenClient:
         except requests.RequestException as exc:  # pragma: no cover
             raise AssertionError(f"AI 请求失败: {exc}") from exc
 
+    # ------------------------------------------------------------------ oidc
+    def oidc_start(self):
+        """发起 OIDC 登录，返回 302 响应（Location 指向 IdP authorize，不自动跳转）。
+
+        调用方需用同一 Session 继续调用 oidc_callback，以保持 oidc_* cookie。
+        """
+        import requests
+
+        url = f"{self.base_url}{environment.API_PREFIX}/auth/oidc/start"
+        try:
+            return self.http.session.get(
+                url,
+                allow_redirects=False,
+                timeout=self.http.timeout,
+                verify=environment.VERIFY_TLS,
+            )
+        except requests.RequestException as exc:  # pragma: no cover
+            raise AssertionError(f"OIDC start 失败: {exc}") from exc
+
+    def oidc_callback(self, code: str, state: str):
+        """携带 code/state 回调，返回 302 响应（成功后 Set-Cookie warden_session）。"""
+        import requests
+
+        url = f"{self.base_url}{environment.API_PREFIX}/auth/oidc/callback"
+        try:
+            return self.http.session.get(
+                url,
+                params={"code": code, "state": state},
+                allow_redirects=False,
+                timeout=self.http.timeout,
+                verify=environment.VERIFY_TLS,
+            )
+        except requests.RequestException as exc:  # pragma: no cover
+            raise AssertionError(f"OIDC callback 失败: {exc}") from exc
+
     # ------------------------------------------------------------- principals
     def list_principals(self, kind: str | None = None) -> list[dict]:
         params = {"kind": kind} if kind else None

@@ -165,3 +165,16 @@ def mock_llm():
     server.start()
     yield server
     server.stop()
+
+
+@pytest.fixture(scope="session")
+def fake_oidc():
+    """启动假 OIDC IdP。OIDC 未启用时 Skip。"""
+    if not environment.OIDC_MOCK_ENABLED:
+        pytest.skip("OIDC 未启用（未设置 WARDEN_TEST_OIDC_ENABLED）")
+    from tools.fake_oidc import FakeOIDCProvider
+
+    provider = FakeOIDCProvider(port=environment.OIDC_MOCK_PORT)
+    provider.start()
+    yield provider
+    provider.stop()

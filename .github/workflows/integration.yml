@@ -119,6 +119,11 @@ jobs:
           WARDEN_AI_MODEL: test-model
           WARDEN_AI_BASE_URL: http://127.0.0.1:9100/v1
           WARDEN_AI_API_KEY: test-key
+          WARDEN_OIDC_ENABLED: "true"
+          WARDEN_OIDC_ISSUER: http://127.0.0.1:9200
+          WARDEN_OIDC_CLIENT_ID: warden-test-client
+          WARDEN_OIDC_CLIENT_SECRET: test-secret
+          WARDEN_OIDC_REDIRECT_URL: http://localhost:8080/api/v1/auth/oidc/callback
         run: |
           nohup ./server/bin/warden-control > /tmp/warden-control.log 2>&1 &
           echo $! > warden-control.pid
@@ -138,9 +143,10 @@ jobs:
           WARDEN_HOME: ${{ github.workspace }}/warden
           WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY_FILE: ${{ github.workspace }}/federation_private.pem
           WARDEN_TEST_AI_ENABLED: "1"
+          WARDEN_TEST_OIDC_ENABLED: "1"
         run: |
           mkdir -p artifacts
-          pytest -m "federated or ai" \
+          pytest -m "federated or ai or oidc" \
             --alluredir=allure-results \
             --junitxml=artifacts/junit-integration.xml
 

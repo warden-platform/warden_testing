@@ -106,6 +106,13 @@ AI_MOCK_ENABLED = str(_get("WARDEN_TEST_AI_ENABLED", "false")).lower() in {
 }
 AI_MOCK_PORT = int(_get("WARDEN_TEST_AI_MOCK_PORT", "9100"))
 
+# OIDC：WARDEN_TEST_OIDC_ENABLED 为真时跑假 IdP 用例（控制面 WARDEN_OIDC_ISSUER
+# 应已指向假 IdP）。mock 端口需与控制面 ISSUER 一致。
+OIDC_MOCK_ENABLED = str(_get("WARDEN_TEST_OIDC_ENABLED", "false")).lower() in {
+    "1", "true", "yes", "on",
+}
+OIDC_MOCK_PORT = int(_get("WARDEN_TEST_OIDC_MOCK_PORT", "9200"))
+
 
 def require_admin_password() -> str:
     if not ADMIN_PASSWORD:
