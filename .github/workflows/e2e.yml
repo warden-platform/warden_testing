@@ -1,0 +1,45 @@
+name: warden-e2e
+
+# 对已有 warden 环境跑黑盒 E2E。由 workflow_dispatch 手动触发或每日定时。
+# 需要在仓库 Secrets 中配置：
+#   WARDEN_BASE_URL / WARDEN_ADMIN_USERNAME / WARDEN_ADMIN_PASSWORD
+#   WARDEN_ADMIN_API_KEY / WARDEN_CORS_ORIGIN
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run API E2E
+        env:
+          WARDEN_BASE_URL: ${{ secrets.WARDEN_BASE_URL }}
+          WARDEN_ADMIN_USERNAME: ${{ secrets.WARDEN_ADMIN_USERNAME }}
+          WARDEN_ADMIN_PASSWORD: ${{ secrets.WARDEN_ADMIN_PASSWORD }}
+          WARDEN_ADMIN_API_KEY: ${{ secrets.WARDEN_ADMIN_API_KEY }}
+          WARDEN_CORS_ORIGIN: ${{ secrets.WARDEN_CORS_ORIGIN }}
+        run: |
+          mkdir -p artifacts
+          pytest -m "smoke or connector or security" \
+            --alluredir=allure-results \
+            --junitxml=artifacts/junit.xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warden-e2e-results
+          path: |
+            allure-results
+            artifacts
