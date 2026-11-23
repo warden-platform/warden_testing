@@ -164,7 +164,10 @@ class WardenClient:
         import requests
 
         url = f"{self.base_url}{environment.API_PREFIX}/ai/chat"
-        headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+        # 复用 HttpClient 的统一请求头（含 CSRF Origin、Accept），覆盖 Accept 为 SSE。
+        headers = dict(self.http.headers)
+        headers["Content-Type"] = "application/json"
+        headers["Accept"] = "text/event-stream"
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         payload: dict[str, Any] = {"message": message}
