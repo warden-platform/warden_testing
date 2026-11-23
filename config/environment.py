@@ -113,6 +113,12 @@ OIDC_MOCK_ENABLED = str(_get("WARDEN_TEST_OIDC_ENABLED", "false")).lower() in {
 }
 OIDC_MOCK_PORT = int(_get("WARDEN_TEST_OIDC_MOCK_PORT", "9200"))
 
+# UI 冒烟：前端 dev server 地址（Vite，代理 /api 到控制面）。
+UI_BASE_URL = str(_get("WARDEN_TEST_UI_BASE_URL", "http://localhost:4173")).rstrip("/")
+UI_MOCK_ENABLED = str(_get("WARDEN_TEST_UI_ENABLED", "false")).lower() in {
+    "1", "true", "yes", "on",
+}
+
 
 def require_admin_password() -> str:
     if not ADMIN_PASSWORD:
