@@ -115,6 +115,10 @@ jobs:
           WARDEN_FEDERATED_ASSERTION_PUBLIC_KEY_FILE: ${{ github.workspace }}/federation_public.pem
           WARDEN_FEDERATED_ASSERTION_ISSUER: https://idp.example.com
           WARDEN_FEDERATED_ASSERTION_AUDIENCE: warden
+          WARDEN_AI_ENABLED: "true"
+          WARDEN_AI_MODEL: test-model
+          WARDEN_AI_BASE_URL: http://127.0.0.1:9100/v1
+          WARDEN_AI_API_KEY: test-key
         run: |
           nohup ./server/bin/warden-control > /tmp/warden-control.log 2>&1 &
           echo $! > warden-control.pid
@@ -133,9 +137,10 @@ jobs:
         env:
           WARDEN_HOME: ${{ github.workspace }}/warden
           WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY_FILE: ${{ github.workspace }}/federation_private.pem
+          WARDEN_TEST_AI_ENABLED: "1"
         run: |
           mkdir -p artifacts
-          pytest -m federated \
+          pytest -m "federated or ai" \
             --alluredir=allure-results \
             --junitxml=artifacts/junit-integration.xml
 

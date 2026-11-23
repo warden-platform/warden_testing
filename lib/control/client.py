@@ -155,6 +155,33 @@ class WardenClient:
     def revoke_federated_project(self, binding_id: str) -> ApiResponse:
         return self.request("DELETE", self._api(f"/federated/projects/{binding_id}"))
 
+    # ------------------------------------------------------------------ ai
+    def ai_chat(self, message: str, conversation_id: str | None = None):
+        """调用 AI 助手（SSE 流式响应）。返回 requests.Response，由用例解析 SSE 事件。
+
+        不自动抛错：正向/负向都用 status_code + 文本断言。
+        """
+        import requests
+
+        url = f"{self.base_url}{environment.API_PREFIX}/ai/chat"
+        headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        payload: dict[str, Any] = {"message": message}
+        if conversation_id:
+            payload["conversationId"] = conversation_id
+        try:
+            return self.http.session.request(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.http.timeout,
+                verify=environment.VERIFY_TLS,
+            )
+        except requests.RequestException as exc:  # pragma: no cover
+            raise AssertionError(f"AI 请求失败: {exc}") from exc
+
     # ------------------------------------------------------------- principals
     def list_principals(self, kind: str | None = None) -> list[dict]:
         params = {"kind": kind} if kind else None

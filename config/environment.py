@@ -99,6 +99,14 @@ def federated_private_key() -> bytes | None:
     return None
 
 
+# AI 助手：WARDEN_TEST_AI_ENABLED 为真时跑 AI mock 用例（此时控制面的
+# WARDEN_AI_BASE_URL 应已指向 mock 服务）。mock 端口需与控制面 BASE_URL 一致。
+AI_MOCK_ENABLED = str(_get("WARDEN_TEST_AI_ENABLED", "false")).lower() in {
+    "1", "true", "yes", "on",
+}
+AI_MOCK_PORT = int(_get("WARDEN_TEST_AI_MOCK_PORT", "9100"))
+
+
 def require_admin_password() -> str:
     if not ADMIN_PASSWORD:
         raise RuntimeError(

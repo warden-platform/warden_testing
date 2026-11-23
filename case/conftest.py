@@ -152,3 +152,16 @@ def federated_signer():
         return federation.build_assertion(private_key, **kwargs)
 
     return sign
+
+
+@pytest.fixture(scope="session")
+def mock_llm():
+    """启动 mock OpenAI 兼容 LLM 服务。AI 未启用时 Skip。"""
+    if not environment.AI_MOCK_ENABLED:
+        pytest.skip("AI 助手未启用（未设置 WARDEN_TEST_AI_ENABLED）")
+    from tools.mock_llm import MockLLMServer
+
+    server = MockLLMServer(port=environment.AI_MOCK_PORT)
+    server.start()
+    yield server
+    server.stop()
