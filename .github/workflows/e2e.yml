@@ -1,43 +1,143 @@
 name: warden-e2e
 
-# 对已有 warden 环境跑黑盒 E2E。由 workflow_dispatch 手动触发或每日定时。
-# 需要在仓库 Secrets 中配置：
-#   WARDEN_BASE_URL / WARDEN_ADMIN_USERNAME / WARDEN_ADMIN_PASSWORD
-#   WARDEN_ADMIN_API_KEY / WARDEN_CORS_ORIGIN
+# 黑盒 E2E：在一台 GitHub runner 内自建完整 warden 栈（postgres service +
+# 控制面二进制），然后跑 warden_testing 的 pytest 黑盒验收测试。
+#
+# 与 gitee 流水线的区别：gitee Gitee Go 无 service 容器能力、起不了 postgres，
+# 因此 warden_testing 的完整黑盒链路（依赖 PostgreSQL + 活着的控制面）放在
+# GitHub Actions 跑；gitee 侧只保留无需外部依赖的轻量门禁。
+#
+# 触发：推送 main（gitee 快照同步后触发）+ 手动 workflow_dispatch。
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: "0 1 * * *"
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: warden
+          POSTGRES_USER: warden
+          POSTGRES_PASSWORD: warden
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warden"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      WARDEN_BASE_URL: http://localhost:8080
+      WARDEN_CORS_ORIGIN: http://localhost:4173
+
+    steps:
+      - name: Checkout warden_testing
+        uses: actions/checkout@v4
+
+      - name: Checkout warden control plane
+        uses: actions/checkout@v4
+        with:
+          repository: warden-platform/warden
+          path: warden
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: warden/server/go.mod
+          cache-dependency-path: warden/server/go.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Initialize warden config & secrets
+        working-directory: warden
+        run: |
+          # 生成四个内部签名/加密密钥（含 WARDEN_ADMIN_API_KEY）
+          scripts/init-local-secrets.sh
+
+          # 非敏感配置：本地 HTTP、5432 数据库、关闭外部 IdP/AI
+          cat > config.yaml <<'YAML'
+          server:
+            port: 8080
+            public_url: http://localhost:8080
+            cors_origin: http://localhost:4173
+            cookie_secure: false
+          database:
+            url: postgres://localhost:5432/warden
+            username: warden
+            password: ${WARDEN_DATABASE_PASSWORD}
+          admin:
+            username: admin
+            password: ${WARDEN_ADMIN_PASSWORD}
+          oidc:
+            enabled: false
+          ai:
+            enabled: false
+          YAML
+
+          # 用户凭据（CI 隔离环境，用固定测试值）
+          cat > .env <<'ENV'
+          WARDEN_ADMIN_PASSWORD=e2e-admin-pass-123
+          WARDEN_DATABASE_PASSWORD=warden
+          ENV
+          chmod 600 .env
+
+      - name: Run database migrations
+        run: |
+          for f in warden/server/migrations/*.sql; do
+            PGPASSWORD=warden psql -h localhost -U warden -d warden \
+              -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Build control plane
+        working-directory: warden
+        run: go build -o bin/warden-control ./server/cmd/warden-control
+
+      - name: Start control plane
+        working-directory: warden
+        run: |
+          nohup ./bin/warden-control > /tmp/warden-control.log 2>&1 &
+          echo $! > warden-control.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/api/v1/health >/dev/null 2>&1; then
+              echo "control plane ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "control plane failed to start; last log:" >&2
+          tail -n 40 /tmp/warden-control.log >&2 || true
+          exit 1
+
+      - name: Install test dependencies
         run: pip install -r requirements.txt
 
-      - name: Run API E2E
+      - name: Run black-box E2E
         env:
-          WARDEN_BASE_URL: ${{ secrets.WARDEN_BASE_URL }}
-          WARDEN_ADMIN_USERNAME: ${{ secrets.WARDEN_ADMIN_USERNAME }}
-          WARDEN_ADMIN_PASSWORD: ${{ secrets.WARDEN_ADMIN_PASSWORD }}
-          WARDEN_ADMIN_API_KEY: ${{ secrets.WARDEN_ADMIN_API_KEY }}
-          WARDEN_CORS_ORIGIN: ${{ secrets.WARDEN_CORS_ORIGIN }}
+          WARDEN_HOME: ${{ github.workspace }}/warden
         run: |
           mkdir -p artifacts
-          pytest -m "smoke or connector or security" \
+          pytest -m "smoke or connector or security or approval" \
             --alluredir=allure-results \
             --junitxml=artifacts/junit.xml
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload results
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: warden-e2e-results
           path: |
