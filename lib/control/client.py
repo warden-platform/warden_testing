@@ -65,6 +65,12 @@ class WardenClient:
     def logout(self) -> dict:
         return self.request("POST", self._api("/auth/logout")).body
 
+    def federated_login(self, assertion: str) -> dict:
+        """联邦断言登录，返回 accessToken（短效 Bearer，不含 session cookie）。"""
+        return self.request(
+            "POST", self._api("/auth/federated/login"), json_body={"assertion": assertion}
+        ).body
+
     # -------------------------------------------------------------- tenants
     def bootstrap_tenant(
         self,
@@ -111,6 +117,43 @@ class WardenClient:
 
     def delete_project(self, project_id: str) -> ApiResponse:
         return self.request("DELETE", self._api(f"/projects/{project_id}"))
+
+    # --------------------------------------------------------------- federated
+    def bind_federated_tenant(self, enterprise_id: str, workspace_id: str) -> dict:
+        """把外部企业/Workspace 绑定到当前租户（供联邦断言登录路由）。"""
+        return self.request(
+            "POST",
+            self._api("/federated/tenants"),
+            json_body={
+                "source": "federated",
+                "externalEnterpriseId": enterprise_id,
+                "externalWorkspaceId": workspace_id,
+            },
+        ).body
+
+    def list_federated_tenants(self) -> list[dict]:
+        return self.request("GET", self._api("/federated/tenants")).body
+
+    def bind_federated_project(
+        self, workspace_id: str, external_project_id: str, project_id: str, name: str = ""
+    ) -> dict:
+        return self.request(
+            "POST",
+            self._api("/federated/projects"),
+            json_body={
+                "source": "federated",
+                "externalWorkspaceId": workspace_id,
+                "externalProjectId": external_project_id,
+                "externalProjectName": name,
+                "projectId": project_id,
+            },
+        ).body
+
+    def list_federated_projects(self) -> list[dict]:
+        return self.request("GET", self._api("/federated/projects")).body
+
+    def revoke_federated_project(self, binding_id: str) -> ApiResponse:
+        return self.request("DELETE", self._api(f"/federated/projects/{binding_id}"))
 
     # ------------------------------------------------------------- principals
     def list_principals(self, kind: str | None = None) -> list[dict]:

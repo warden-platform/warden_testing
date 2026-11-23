@@ -133,3 +133,22 @@ def connector(tenant_admin: WardenClient, default_project: dict) -> dict:
         tenant_admin.delete_connector(connector["id"])
     except Exception:
         pass
+
+
+@pytest.fixture(scope="session")
+def federated_signer():
+    """联邦断言签名器。未配置测试端私钥时 Skip（联邦未启用）。"""
+    private_key = environment.federated_private_key()
+    if not private_key:
+        pytest.skip(
+            "联邦断言未配置：请设置 WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY(_FILE)"
+        )
+
+    def sign(**kwargs: object) -> str:
+        from tools import federation
+
+        kwargs.setdefault("issuer", environment.FEDERATED_ASSERTION_ISSUER)
+        kwargs.setdefault("audience", environment.FEDERATED_ASSERTION_AUDIENCE)
+        return federation.build_assertion(private_key, **kwargs)
+
+    return sign

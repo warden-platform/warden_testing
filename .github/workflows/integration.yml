@@ -1,0 +1,149 @@
+name: warden-integration-e2e
+
+# 集成黑盒测试：需要 mock 服务或特殊配置（联邦私钥签名、假 IdP、mock LLM、
+# 钉钉渠道）的用例，与核心 e2e（smoke/connector/security）分离，避免拖慢门禁。
+#
+# 设计：控制面启动时带各集成配置（联邦公钥、OIDC issuer、AI base_url），
+# 其中 OIDC discovery 懒加载、AI 调用时才访问，故 mock 服务可在 pytest
+# 的 session fixture 里就绪，不必先于控制面。
+#
+# 触发：手动 + 推送 main。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: warden
+          POSTGRES_USER: warden
+          POSTGRES_PASSWORD: warden
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warden"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      WARDEN_BASE_URL: http://localhost:8080
+      WARDEN_CORS_ORIGIN: http://localhost:4173
+
+    steps:
+      - name: Checkout warden_testing
+        uses: actions/checkout@v4
+
+      - name: Checkout warden control plane
+        uses: actions/checkout@v4
+        with:
+          repository: warden-platform/warden
+          path: warden
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: warden/server/go.mod
+          cache-dependency-path: warden/server/go.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Install test dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate federated key pair
+        run: |
+          python -c "from tools import federation; p, g = federation.generate_rsa_key_pair(); open('federation_private.pem','wb').write(p); open('federation_public.pem','wb').write(g)"
+
+      - name: Initialize warden config & secrets
+        working-directory: warden
+        run: |
+          scripts/init-local-secrets.sh
+          cat > config.yaml <<'YAML'
+          server:
+            port: 8080
+            public_url: http://localhost:8080
+            cors_origin: http://localhost:4173
+            cookie_secure: false
+          database:
+            url: postgres://localhost:5432/warden
+            username: warden
+            password: ${WARDEN_DATABASE_PASSWORD}
+          admin:
+            username: admin
+            password: ${WARDEN_ADMIN_PASSWORD}
+          oidc:
+            enabled: false
+          ai:
+            enabled: false
+          YAML
+          cat > .env <<'ENV'
+          WARDEN_ADMIN_PASSWORD=e2e-admin-pass-123
+          WARDEN_DATABASE_PASSWORD=warden
+          ENV
+          chmod 600 .env
+
+      - name: Run database migrations
+        run: |
+          for f in warden/server/migrations/*.sql; do
+            PGPASSWORD=warden psql -h localhost -U warden -d warden \
+              -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Build control plane
+        working-directory: warden/server
+        run: go build -o bin/warden-control ./cmd/warden-control
+
+      - name: Start control plane
+        working-directory: warden
+        env:
+          WARDEN_FEDERATED_ASSERTION_PUBLIC_KEY_FILE: ${{ github.workspace }}/federation_public.pem
+          WARDEN_FEDERATED_ASSERTION_ISSUER: https://idp.example.com
+          WARDEN_FEDERATED_ASSERTION_AUDIENCE: warden
+        run: |
+          nohup ./server/bin/warden-control > /tmp/warden-control.log 2>&1 &
+          echo $! > warden-control.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/api/v1/health >/dev/null 2>&1; then
+              echo "control plane ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "control plane failed to start; last log:" >&2
+          tail -n 40 /tmp/warden-control.log >&2 || true
+          exit 1
+
+      - name: Run integration E2E
+        env:
+          WARDEN_HOME: ${{ github.workspace }}/warden
+          WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY_FILE: ${{ github.workspace }}/federation_private.pem
+        run: |
+          mkdir -p artifacts
+          pytest -m federated \
+            --alluredir=allure-results \
+            --junitxml=artifacts/junit-integration.xml
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warden-integration-results
+          path: |
+            allure-results
+            artifacts

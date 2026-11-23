@@ -77,6 +77,27 @@ CORS_ORIGIN = (
 TEST_TENANT_PREFIX = str(_get("WARDEN_TEST_TENANT_PREFIX", "e2e"))
 TEST_TENANT_ADMIN_NAME = str(_get("WARDEN_TEST_TENANT_ADMIN_NAME", "e2e-admin"))
 
+# 联邦断言登录：测试端持有签名私钥，与 warden 部署侧的
+# WARDEN_FEDERATED_ASSERTION_PUBLIC_KEY 配对。未配置私钥则联邦用例 Skip。
+FEDERATED_ASSERTION_ISSUER = str(
+    _get("WARDEN_FEDERATED_ASSERTION_ISSUER", "https://idp.example.com")
+)
+FEDERATED_ASSERTION_AUDIENCE = str(_get("WARDEN_FEDERATED_ASSERTION_AUDIENCE", "warden"))
+
+FEDERATED_PRIVATE_KEY = _get("WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY")
+FEDERATED_PRIVATE_KEY_FILE = _get("WARDEN_TEST_FEDERATED_ASSERTION_PRIVATE_KEY_FILE")
+
+
+def federated_private_key() -> bytes | None:
+    """返回测试端联邦签名私钥（PEM），未配置返回 None。"""
+    if FEDERATED_PRIVATE_KEY:
+        return FEDERATED_PRIVATE_KEY.encode("utf-8")
+    if FEDERATED_PRIVATE_KEY_FILE:
+        path = Path(FEDERATED_PRIVATE_KEY_FILE).expanduser()
+        if path.exists():
+            return path.read_bytes()
+    return None
+
 
 def require_admin_password() -> str:
     if not ADMIN_PASSWORD:
