@@ -46,7 +46,7 @@ git -C "$MIRROR" --work-tree="$EXPORT_DIR" add -A
 TREE="$(git -C "$MIRROR" write-tree)"
 
 if [ -n "$PARENT" ] && [ "$TREE" = "$(git -C "$MIRROR" rev-parse "$PARENT^{tree}")" ]; then
-  echo "树与镜像 HEAD 一致（gitee@$SHORT），无需新 commit。"
+  echo "树与镜像 HEAD 一致（gitee@${SHORT}），无需新 commit。"
 else
   MSG="chore: 同步 gitee master@$SHORT"
   if [ -n "$PARENT" ]; then
@@ -56,7 +56,7 @@ else
   fi
   git -C "$MIRROR" update-ref "refs/heads/$GITHUB_BRANCH" "$NEW_COMMIT"
   git -C "$MIRROR" -c http.proxy="$GITHUB_PROXY" push origin "$GITHUB_BRANCH"
-  echo "已推送快照 commit：$(git -C "$MIRROR" rev-parse --short "$NEW_COMMIT")（gitee@$SHORT）"
+  echo "已推送快照 commit：$(git -C "$MIRROR" rev-parse --short "$NEW_COMMIT")（gitee@${SHORT}）"
 fi
 unset GIT_INDEX_FILE
 
