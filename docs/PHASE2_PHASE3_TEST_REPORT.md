@@ -29,12 +29,13 @@ pytest -m "smoke or connector or security or approval" \
 | 指标 | 结果 |
 |---|---|
 | Phase 2/3 新增用例 | 14 |
+| GitHub Actions `warden-e2e`（[run 45338044329](https://github.com/warden-platform/warden_testing/actions/runs/45338044329)） | **success** |
+| CI 核心套件 | **45 passed，0 failed，0 error，0 skipped**；JUnit 用例耗时 26.6s，job 耗时 1m48s |
 | 本地预检（与 CI 同 marker） | 14 passed，0 failed，7.36s |
-| 核心套件本地回归 | 45 passed，18.11s |
-| GitHub Actions 结果 | 待本次变更提交并同步到 GitHub 后，由 `warden-e2e` 生成 |
 | 全量用例数 | 67（核心 45 + 集成 17 + UI 5） |
+| 快照提交 | gitee `8aab1e3` → GitHub `c18b7ca` |
 
-结论：新增 14 条用例均已通过本地预检，且全部落在 `warden-e2e` 的 marker 集合内，提交同步后会自动进入 CI；核心套件无回归。
+结论：新增 14 条用例随核心套件在 GitHub Actions 中全部通过，CI 结果与本地预检一致，无回归。
 
 ## 2. CI 覆盖与产物
 
@@ -44,6 +45,7 @@ pytest -m "smoke or connector or security or approval" \
 | 触发 | push `main` / 手动 `workflow_dispatch` |
 | 环境 | ubuntu-latest + postgres:16-alpine + Go 构建的 warden-control |
 | 用例范围 | `-m "smoke or connector or security or approval"`，新增 14 条全部命中 |
+| 本次运行 | [45338044329](https://github.com/warden-platform/warden_testing/actions/runs/45338044329)，2026-11-24 06:06:59Z 启动，1m48s 完成 |
 | 产物 | `warden-e2e-results`：`allure-results/` + `artifacts/junit.xml` |
 | 查看方式 | Actions 运行页 → Artifacts 下载；失败时先看 JUnit 再用 allure 打开明细 |
 
@@ -95,5 +97,5 @@ pytest -m "smoke or connector or security or approval" \
 ## 5. 限制与后续
 
 - 未覆盖：审批过期、列表分页、Scope 细分、Connector 租约真正过期（需等待窗口）、TaskEnvelope 在 Python 侧本地验签。
-- 集成 17 条与 UI 5 条本轮未执行，需对应 mock / 前端 dev server 配置。
-- 建议将新增用例随 `make smoke` / `make connector` 纳入 PR 门禁；若需要报告归档，可用 `make report` 查看 allure 明细。
+- 集成 17 条与 UI 5 条本轮未执行，需对应 mock / 前端 dev server 配置；新增用例已随 `warden-e2e` 的 core marker 集合进入 CI。
+- 报告明细可在 Actions 产物 `warden-e2e-results` 中用 allure 打开；本地亦可用 `make report` 查看。
