@@ -31,9 +31,9 @@ config/  环境与凭据
 
 ## 3. 覆盖矩阵
 
-### 已实现（53 个用例）
+### 已实现（67 个用例）
 
-**核心 API（31）**：
+**核心 API（45）**：
 
 | 域 | 用例 | 关键断言 |
 |---|---|---|
@@ -52,6 +52,11 @@ config/  环境与凭据
 | 幂等/取消 | 相同 `Idempotency-Key`、QUEUED 取消 | 同 execution id；CANCELLED |
 | 审计 | 执行审计 | `execution.queued`、`execution.completed` |
 | 签名负向 | 错误 Key、篡改 body、过期、重放、缺头 | 401 `CONNECTOR_UNAUTHORIZED` |
+| 策略矩阵 | 规则 CRUD、校验负向、复制、模拟 | 201/200/204/400；矩阵 DENY 收紧、Rego DENY 不可放宽 |
+| 策略执行 | ALLOW 放宽变更、REQUIRE_APPROVAL 收紧只读、DENY 阻断 | QUEUED / WAITING_APPROVAL / 403 `POLICY_DENIED` |
+| 并发配额 | `maxConcurrentTasks=1` 时提交第二条执行 | 429 `CONCURRENCY_LIMIT_REACHED`；取消后额度释放 |
+| 审批决策 | 拒绝、重复决策、Agent 越权审批 | FAILED `APPROVAL_REJECTED` / 409 `ALREADY_PROCESSED` / 403 `INSUFFICIENT_SCOPE` |
+| 分发租约 | 错误 token、UNKNOWN、重复回传、跨 Connector 回传 | 409 `EXECUTION_STATE_CHANGED` / UNKNOWN `UNKNOWN_RESULT` / 幂等 accepted / 409 `INVALID_EXECUTION_STATE` |
 | 租户隔离 | 资源动作、执行、资源列表、Principal、项目成员 | 404 / 空列表 / 不泄露 |
 
 **集成（17）**：
@@ -74,8 +79,8 @@ config/  环境与凭据
 
 | 阶段 | 内容 |
 |---|---|
-| Phase 2 | 策略矩阵 `ALLOW/DENY/REQUIRE_APPROVAL`、拒绝原因、审批过期、并发 429、分页、Scope 细分 |
-| Phase 3 | Connector 租约过期、TaskEnvelope 本地验签、`UNKNOWN` 语义、变更安全 `_warden_safety`、真实目标集成（可选） |
+| Phase 2 | 已落地：策略矩阵 `ALLOW/DENY/REQUIRE_APPROVAL`、拒绝原因、并发 429、审批拒绝与重复处理；剩余：审批过期、分页、Scope 细分 |
+| Phase 3 | 已落地：`UNKNOWN` 语义、dispatchToken 负向、终态重复回传、跨 Connector 回传；剩余：Connector 租约过期、TaskEnvelope 本地验签、变更安全 `_warden_safety`、真实目标集成（可选） |
 | Phase 4 | 剩余：委托 Token、下载接口（联邦断言/OIDC/钉钉/AI/UI 已落地） |
 
 ## 4. 安全测试矩阵
@@ -117,7 +122,7 @@ CI（GitHub Actions，`scripts/sync-github.sh` 把 gitee 快照同步到 GitHub 
 
 | workflow | 触发 | 内容 |
 |---|---|---|
-| `warden-e2e` | push main | postgres service + 自建 warden → 核心 31（smoke/connector/security/approval） |
+| `warden-e2e` | push main | postgres service + 自建 warden → 核心 45（smoke/connector/security/approval） |
 | `warden-integration-e2e` | push main / 手动 | 控制面带集成配置 + 各 mock → 联邦/AI/OIDC/钉钉 17 |
 | `warden-ui-smoke` | 手动 | 附加前端 dev server + Playwright 浏览器 → UI 5 |
 

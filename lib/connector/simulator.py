@@ -168,9 +168,10 @@ class TestConnector:
 
     # ---------------------------------------------------------------- tasks
     def poll_tasks(self) -> list[dict]:
+        # 服务端没有待领取任务时返回 JSON null，这里统一归一为空列表。
         return self.send_signed(
             "GET", f"/api/v1/connectors/{self.connector_id}/tasks"
-        ).body
+        ).body or []
 
     def submit_result(
         self,
@@ -180,6 +181,19 @@ class TestConnector:
         result: dict | None = None,
         error: str = "",
     ) -> dict:
+        return self.submit_result_response(
+            execution_id, dispatch_token, status, result, error
+        ).body
+
+    def submit_result_response(
+        self,
+        execution_id: str,
+        dispatch_token: str,
+        status: str = "SUCCEEDED",
+        result: dict | None = None,
+        error: str = "",
+    ) -> ApiResponse:
+        """回传执行结果并返回原始响应，供负向用例断言状态码与错误码。"""
         payload = {
             "dispatchToken": dispatch_token,
             "status": status,
@@ -190,7 +204,8 @@ class TestConnector:
             "POST",
             f"/api/v1/connectors/{self.connector_id}/tasks/{execution_id}/result",
             payload,
-        ).body
+            allow_error=True,
+        )
 
     def find_task(self, execution_id: str) -> dict:
         for task in self.poll_tasks():

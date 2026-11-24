@@ -99,6 +99,14 @@ class WardenClient:
     def disable_tenant(self, slug: str) -> Any:
         return self.request("POST", self._api(f"/tenants/{slug}/disable")).body
 
+    def update_tenant_quota(self, slug: str, max_concurrent_tasks: int) -> dict:
+        """平台管理员调整租户在途执行上限（并发保护阈值）。"""
+        return self.request(
+            "PUT",
+            self._api(f"/tenants/{slug}/quota"),
+            json_body={"maxConcurrentTasks": max_concurrent_tasks},
+        ).body
+
     # -------------------------------------------------------------- projects
     def list_projects(self) -> list[dict]:
         return self.request("GET", self._api("/projects")).body
@@ -384,6 +392,109 @@ class WardenClient:
 
     def reject_access_request(self, request_id: str) -> dict:
         return self.request("POST", self._api(f"/access-requests/{request_id}/reject")).body
+
+    # --------------------------------------------------------- policy rules
+    def list_policy_rules(self) -> list[dict]:
+        """查询可视化策略矩阵规则；无规则时服务端返回 null。"""
+        return self.request("GET", self._api("/policy-rules")).body
+
+    def create_policy_rule(
+        self,
+        *,
+        name: str,
+        decision: str,
+        project_id: str = "",
+        resource_type: str = "*",
+        action_name: str = "*",
+        environment: str = "*",
+        risk_level: str = "",
+        principal_kind: str = "",
+        priority: int = 0,
+        enabled: bool = True,
+        description: str = "",
+    ) -> dict:
+        return self.request(
+            "POST",
+            self._api("/policy-rules"),
+            json_body={
+                "name": name,
+                "project_id": project_id,
+                "resource_type": resource_type,
+                "action_name": action_name,
+                "environment": environment,
+                "risk_level": risk_level,
+                "principal_kind": principal_kind,
+                "decision": decision,
+                "priority": priority,
+                "enabled": enabled,
+                "description": description,
+            },
+        ).body
+
+    def update_policy_rule(
+        self,
+        rule_id: str,
+        *,
+        name: str,
+        decision: str,
+        project_id: str = "",
+        resource_type: str = "*",
+        action_name: str = "*",
+        environment: str = "*",
+        risk_level: str = "",
+        principal_kind: str = "",
+        priority: int = 0,
+        enabled: bool = True,
+        description: str = "",
+    ) -> dict:
+        return self.request(
+            "PUT",
+            self._api(f"/policy-rules/{rule_id}"),
+            json_body={
+                "name": name,
+                "project_id": project_id,
+                "resource_type": resource_type,
+                "action_name": action_name,
+                "environment": environment,
+                "risk_level": risk_level,
+                "principal_kind": principal_kind,
+                "decision": decision,
+                "priority": priority,
+                "enabled": enabled,
+                "description": description,
+            },
+        ).body
+
+    def delete_policy_rule(self, rule_id: str) -> ApiResponse:
+        return self.request("DELETE", self._api(f"/policy-rules/{rule_id}"))
+
+    def copy_policy_rule(self, rule_id: str) -> dict:
+        return self.request("POST", self._api(f"/policy-rules/{rule_id}/copy")).body
+
+    def simulate_policy_rule(
+        self,
+        *,
+        base_decision: str = "REQUIRE_APPROVAL",
+        project_id: str = "",
+        resource_type: str = "",
+        action_name: str = "",
+        environment: str = "",
+        risk_level: str = "",
+        principal_kind: str = "",
+    ) -> dict:
+        return self.request(
+            "POST",
+            self._api("/policy-rules/simulate"),
+            json_body={
+                "project_id": project_id,
+                "resource_type": resource_type,
+                "action_name": action_name,
+                "environment": environment,
+                "risk_level": risk_level,
+                "principal_kind": principal_kind,
+                "base_decision": base_decision,
+            },
+        ).body
 
     # -------------------------------------------------------------- audit
     def list_audit_events(self, **params: Any) -> list[dict]:

@@ -5,11 +5,11 @@
 
 ## 当前状态
 
-- 共 **53 个用例**，三个 workflow 全绿：
-  - 核心 API 31（健康/认证/租户/项目/Principal/Key/Connector/执行/审批/审计/隔离/签名负向）；
+- 共 **67 个用例**，三个 workflow 全绿：
+  - 核心 API 45（健康/认证/租户/项目/Principal/Key/Connector/执行/审批/审计/隔离/签名负向/策略矩阵/并发配额）；
   - 集成 17（联邦断言 5、AI 助手 2、OIDC 2、钉钉渠道 8）；
   - UI 冒烟 5（登录 2 + 资源目录/审批/审计三页 3）。
-- 覆盖：健康检查、平台/租户登录、租户生命周期、项目、Principal/API Key、测试 Connector、执行状态机、审批、审计、租户隔离、Connector 签名负向、联邦断言登录、AI 助手、OIDC、钉钉审批渠道、UI 登录与三页冒烟。
+- 覆盖：健康检查、平台/租户登录、租户生命周期、项目、Principal/API Key、测试 Connector、执行状态机、审批与拒绝、审计、租户隔离、Connector 签名负向、策略矩阵决策与放行/收紧、并发配额、分发租约与结果回传边界、联邦断言登录、AI 助手、OIDC、钉钉审批渠道、UI 登录与三页冒烟。
 - 不依赖真实 Kubernetes / Jenkins / 网络设备：仓库内置 **Python 版测试 Connector**，复刻 warden 的 HMAC 请求签名协议；集成测试用 mock（假 IdP / mock LLM / RSA 自签断言）。
 
 ## 为什么独立成仓
@@ -208,6 +208,6 @@ def test_example(tenant_admin: WardenClient):
 
 详见 [docs/TEST_PLAN.md](docs/TEST_PLAN.md)：
 
-- Phase 2：策略矩阵、更多审批/取消/并发边界；
-- Phase 3：Connector 租约过期、TaskEnvelope 本地验签、变更安全结果；
+- Phase 2 已落地：策略矩阵决策与执行放行/收紧、并发 429、审批拒绝与重复处理；剩余：审批过期、分页、Scope 细分；
+- Phase 3 部分落地：`UNKNOWN` 语义、dispatchToken 负向与重复回传；剩余：租约过期、TaskEnvelope 本地验签、变更安全结果；
 - Phase 4 已落地：联邦断言、OIDC（假 IdP）、钉钉渠道、AI（mock）、UI 冒烟；剩余：委托 Token、下载接口。
